@@ -1,0 +1,283 @@
+---
+title: "Informe de Análisis Estadístico Completo"
+author: "Turnos Mañana vs Tarde"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    theme: flatly
+    code_folding: show
+---
+
+```{r setup, include=FALSE}
+# Configuración global de los chunks
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = "center")
+
+# Carga de librerías
+# install.packages(c("BSDA", "ggplot2", "Rmisc", "car", "e1071", "tseries")) # Ejecutar en consola si faltan
+library(BSDA)
+library(ggplot2)
+library(Rmisc)
+library(car)
+library(e1071)
+library(tseries)
+library(knitr)
+```
+
+# 1. Preparación de Datos
+
+Cargamos los datos del fichero principal y definimos las muestras grandes. También cargamos las muestras pequeñas predefinidas.
+
+```{r carga_datos}
+# Carga de datos principales
+encuesta.con.turno <- read.csv2("encuesta_turno.csv")
+
+# Separación por turnos (Muestras Grandes)
+nota.mañana <- encuesta.con.turno[encuesta.con.turno$TURNO == "Mañana", ]$NOTA
+nota.tarde <- encuesta.con.turno[encuesta.con.turno$TURNO == "Tarde", ]$NOTA
+notaM.muestra.grande <- nota.mañana
+notaT.muestra.grande <- nota.tarde
+
+# Carga de muestras pequeñas (asegúrate de tener los .csv generados)
+# Si no existen, el código original usaba sample(), pero aquí leemos los ficheros como indicaste
+if(file.exists("20notasmañana.csv") & file.exists("20notastarde.csv")){
+  x <- read.csv2("20notasmañana.csv")
+  notaM.muestra.pequeña <- x$x
+  x <- read.csv2("20notastarde.csv")
+  notaT.muestra.pequeña <- x$x
+} else {
+  # Fallback por si no tienes los csv creados aún
+  set.seed(123)
+  notaM.muestra.pequeña <- sample(notaM.muestra.grande, 20)
+  notaT.muestra.pequeña <- sample(notaT.muestra.grande, 20)
+  warning("Se han generado muestras aleatorias porque no se encontraron los archivos csv pequeños.")
+}
+
+cat("Muestras Grandes (n): Mañana =", length(notaM.muestra.grande), "| Tarde =", length(notaT.muestra.grande), "\n")
+cat("Muestras Pequeñas (n): Mañana =", length(notaM.muestra.pequeña), "| Tarde =", length(notaT.muestra.pequeña))
+```
+
+# 2. Análisis Descriptivo y Normalidad
+
+## 2.1 Muestras Grandes
+
+Visualizamos la distribución y comparamos con la curva normal teórica.
+
+```{r graficos_grandes, fig.width=10, fig.height=5}
+# Histograma vs densidad Normal
+par(mfrow=c(1,2))
+L <- c(5,6,7,8,9,10,11)
+
+hist(notaM.muestra.grande, breaks = L, main="Mañana (Muestra Grande)", 
+     ylim=c(0,0.4), ylab = "", xlab = "Nota", freq = FALSE, col="lightblue")
+curve(dnorm(x, mean(notaM.muestra.grande), sd(notaM.muestra.grande)), 5, 11, add=TRUE, lwd=2)
+
+hist(notaT.muestra.grande, breaks = L, main="Tarde (Muestra Grande)", 
+     ylim=c(0,0.4), ylab = "", xlab = "Nota", freq = FALSE, col="lightcoral")
+curve(dnorm(x, mean(notaT.muestra.grande), sd(notaT.muestra.grande)), 5, 11, add=TRUE, lwd=2)
+
+# Densidad
+par(mfrow=c(1,2))
+plot(density(notaM.muestra.grande), main="Densidad Mañana", col="blue", lwd=2)
+curve(dnorm(x, mean(notaM.muestra.grande), sd(notaM.muestra.grande)), 0, 12, add=TRUE, col="red", lty=2)
+
+plot(density(notaT.muestra.grande), main="Densidad Tarde", col="red", lwd=2)
+curve(dnorm(x, mean(notaT.muestra.grande), sd(notaT.muestra.grande)), 0, 12, add=TRUE, col="blue", lty=2)
+
+# QQ Plots
+par(mfrow=c(1,2))
+qqPlot(notaM.muestra.grande, main = "Q-Q Mañana")
+qqPlot(notaT.muestra.grande, main = "Q-Q Tarde")
+par(mfrow=c(1,1))
+```
+
+### Estadísticos de Forma y Tests
+
+Analizamos asimetría, curtosis y tests formales de normalidad.
+
+```{r estadisticos_grandes}
+# Asimetría y Curtosis
+stats_forma <- data.frame(
+  Turno = c("Mañana", "Tarde"),
+  Asimetria = c(skewness(notaM.muestra.grande), skewness(notaT.muestra.grande)),
+  Curtosis = c(kurtosis(notaM.muestra.grande), kurtosis(notaT.muestra.grande))
+)
+kable(stats_forma, caption = "Estadísticos de Forma")
+
+# Tests de Normalidad
+cat("--- Test Jarque-Bera ---\n")
+print(jarque.bera.test(notaM.muestra.grande))
+print(jarque.bera.test(notaT.muestra.grande))
+
+cat("\n--- Test Shapiro-Wilk ---\n")
+print(shapiro.test(notaM.muestra.grande))
+print(shapiro.test(notaT.muestra.grande))
+```
+
+## 2.2 Muestras Pequeñas
+
+Repetimos el análisis visual para las muestras reducidas (n=20).
+
+```{r graficos_pequeños, fig.width=10, fig.height=5}
+par(mfrow=c(1,2))
+hist(notaM.muestra.pequeña, breaks = L, main="Mañana (Muestra Pequeña)", 
+     ylim=c(0,0.4), ylab = "", xlab = "Nota", freq = FALSE, col="lightblue")
+curve(dnorm(x, mean(notaM.muestra.pequeña), sd(notaM.muestra.pequeña)), 0, 12, add=TRUE, col="red", lwd=2)
+
+hist(notaT.muestra.pequeña, breaks = L, main="Tarde (Muestra Pequeña)", 
+     ylim=c(0,0.4), ylab = "", xlab = "Nota", freq = FALSE, col="lightcoral")
+curve(dnorm(x, mean(notaT.muestra.pequeña), sd(notaT.muestra.pequeña)), 0, 12, add=TRUE, col="red", lwd=2)
+
+par(mfrow=c(1,2))
+qqPlot(notaM.muestra.pequeña, main = "Q-Q Mañana (Pequeña)")
+qqPlot(notaT.muestra.pequeña, main = "Q-Q Tarde (Pequeña)")
+par(mfrow=c(1,1))
+```
+
+```{r shapiro_pequeños}
+cat("Shapiro Mañana (Peq):", shapiro.test(notaM.muestra.pequeña)$p.value, "\n")
+cat("Shapiro Tarde (Peq):", shapiro.test(notaT.muestra.pequeña)$p.value)
+```
+
+# 3. Intervalos de Confianza (Medias)
+
+Calculamos y comparamos los intervalos de confianza para las medias de ambos turnos y tamaños de muestra.
+
+```{r calculo_intervalos_medias}
+# Muestras Grandes (Z-test)
+test.M.grande <- z.test(notaM.muestra.grande, sigma.x=sd(notaM.muestra.grande), conf.level=0.95)
+test.T.grande <- z.test(notaT.muestra.grande, sigma.x=sd(notaT.muestra.grande), conf.level=0.95)
+
+# Muestras Pequeñas (T-test)
+test.M.pequeña <- t.test(notaM.muestra.pequeña, conf.level=0.95)
+test.T.pequeña <- t.test(notaT.muestra.pequeña, conf.level=0.95)
+
+# Extracción de límites
+Li.M.grande <- test.M.grande$conf.int[1]; Ls.M.grande <- test.M.grande$conf.int[2]
+Li.T.grande <- test.T.grande$conf.int[1]; Ls.T.grande <- test.T.grande$conf.int[2]
+Li.M.pequeña <- test.M.pequeña$conf.int[1]; Ls.M.pequeña <- test.M.pequeña$conf.int[2]
+Li.T.pequeña <- test.T.pequeña$conf.int[1]; Ls.T.pequeña <- test.T.pequeña$conf.int[2]
+```
+
+```{r grafico_intervalos_medias, fig.width=8, fig.height=6}
+plot(c(1,1,1.1,1.1,2,2,2.1,2.1),
+     c(Li.M.grande, Ls.M.grande, Li.T.grande, Ls.T.grande, Li.M.pequeña, Ls.M.pequeña, Li.T.pequeña, Ls.T.pequeña), 
+     xlim = c(0,4), ylim=c(6,9),
+     xlab = "1=Muestras grandes, 2=Muestras pequeñas", ylab = "Nota media",
+     main = "Comparación de Intervalos de Confianza (Medias)")
+
+lines(c(1,1), c(Li.M.grande, Ls.M.grande), lwd=2)
+lines(c(1.1,1.1), c(Li.T.grande, Ls.T.grande), col="red", lwd=2)
+lines(c(2,2), c(Li.M.pequeña, Ls.M.pequeña), lwd=2)
+lines(c(2.1,2.1), c(Li.T.pequeña, Ls.T.pequeña), col="red", lwd=2)
+
+legend("topright", legend=c("Mañana", "Tarde"), col=c("black", "red"), lty=1, lwd=2)
+```
+
+# 4. Análisis de Proporciones
+
+Analizamos las proporciones de Aprobados, Notables y Sobresalientes.
+
+## 4.1 Cálculo de Frecuencias
+
+```{r prep_proporciones}
+# Tamaños
+n.M.g <- length(notaM.muestra.grande); n.T.g <- length(notaT.muestra.grande)
+n.M.p <- length(notaM.muestra.pequeña); n.T.p <- length(notaT.muestra.pequeña)
+
+# Aprobados [5, 7)
+ng.apM.g <- length(notaM.muestra.grande[notaM.muestra.grande>=5 & notaM.muestra.grande<7])
+ng.apT.g <- length(notaT.muestra.grande[notaT.muestra.grande>=5 & notaT.muestra.grande<7])
+ng.apM.p <- length(notaM.muestra.pequeña[notaM.muestra.pequeña>=5 & notaM.muestra.pequeña<7])
+ng.apT.p <- length(notaT.muestra.pequeña[notaT.muestra.pequeña>=5 & notaT.muestra.pequeña<7])
+
+# Notables [7, 9)
+ng.notM.g <- length(notaM.muestra.grande[notaM.muestra.grande>=7 & notaM.muestra.grande<9])
+ng.notT.g <- length(notaT.muestra.grande[notaT.muestra.grande>=7 & notaT.muestra.grande<9])
+ng.notM.p <- length(notaM.muestra.pequeña[notaM.muestra.pequeña>=7 & notaM.muestra.pequeña<9])
+ng.notT.p <- length(notaT.muestra.pequeña[notaT.muestra.pequeña>=7 & notaT.muestra.pequeña<9])
+
+# Sobresalientes (>= 9)
+ng.sobM.g <- length(notaM.muestra.grande[notaM.muestra.grande>=9])
+ng.sobT.g <- length(notaT.muestra.grande[notaT.muestra.grande>=9])
+ng.sobM.p <- length(notaM.muestra.pequeña[notaM.muestra.pequeña>=9])
+ng.sobT.p <- length(notaT.muestra.pequeña[notaT.muestra.pequeña>=9])
+```
+
+## 4.2 Gráficos de Intervalos (Proporciones)
+
+Generamos los intervalos y los visualizamos por categoría.
+
+```{r graficos_proporciones, fig.width=10, fig.height=4}
+# Función auxiliar para plotear
+plot_prop_intervals <- function(nM_g, nT_g, nM_p, nT_p, totalM_g, totalT_g, totalM_p, totalT_p, titulo) {
+  tMg <- prop.test(nM_g, totalM_g, conf.level=0.95, correct=FALSE)
+  tTg <- prop.test(nT_g, totalT_g, conf.level=0.95, correct=FALSE)
+  tMp <- prop.test(nM_p, totalM_p, conf.level=0.95, correct=FALSE)
+  tTp <- prop.test(nT_p, totalT_p, conf.level=0.95, correct=FALSE)
+  
+  vals <- c(tMg$conf.int, tTg$conf.int, tMp$conf.int, tTp$conf.int)
+  
+  plot(c(1,1,1.1,1.1,2,2,2.1,2.1), vals, xlim = c(0,4), 
+       xlab = "1=Grandes, 2=Pequeñas", ylab = "Proporción", main = titulo)
+  lines(c(1,1), tMg$conf.int, lwd=2)
+  lines(c(1.1,1.1), tTg$conf.int, col="red", lwd=2)
+  lines(c(2,2), tMp$conf.int, lwd=2)
+  lines(c(2.1,2.1), tTp$conf.int, col="red", lwd=2)
+}
+
+par(mfrow=c(1,3))
+plot_prop_intervals(ng.apM.g, ng.apT.g, ng.apM.p, ng.apT.p, n.M.g, n.T.g, n.M.p, n.T.p, "Aprobados")
+plot_prop_intervals(ng.notM.g, ng.notT.g, ng.notM.p, ng.notT.p, n.M.g, n.T.g, n.M.p, n.T.p, "Notables")
+plot_prop_intervals(ng.sobM.g, ng.sobT.g, ng.sobM.p, ng.sobT.p, n.M.g, n.T.g, n.M.p, n.T.p, "Sobresalientes")
+par(mfrow=c(1,1))
+```
+
+# 5. Contraste de Hipótesis
+
+## 5.1 Diferencia de Medias
+
+```{r contraste_medias}
+# Muestras Grandes
+cat("--- Z-Test Muestras Grandes ---\n")
+print(z.test(notaM.muestra.grande, notaT.muestra.grande, alternative="two.sided", 
+       sigma.x=sd(notaM.muestra.grande), sigma.y=sd(notaT.muestra.grande)))
+
+# Homocedasticidad (Levene)
+df_grande <- data.frame(NOTA = c(notaM.muestra.grande, notaT.muestra.grande), 
+                        TURNO = c(rep("Mañana", n.M.g), rep("Tarde", n.T.g)))
+cat("\n--- Levene Test ---\n")
+print(leveneTest(NOTA ~ TURNO, data = df_grande))
+
+# Muestras Pequeñas
+cat("\n--- T-Test Muestras Pequeñas (Greater) ---\n")
+print(t.test(notaM.muestra.pequeña, notaT.muestra.pequeña, alternative="greater", var.equal = TRUE))
+```
+
+## 5.2 Diferencia de Proporciones
+
+```{r contraste_proporciones}
+cat("--- Aprobados (Grandes, Less) ---\n")
+prop.test(c(ng.apM.g, ng.apT.g), c(n.M.g, n.T.g), alternative="less", correct=FALSE)
+
+cat("\n--- Notables (Grandes, Two.sided) ---\n")
+prop.test(c(ng.notM.g, ng.notT.g), c(n.M.g, n.T.g), alternative="two.sided", correct=FALSE)
+
+cat("\n--- Sobresalientes (Grandes, Two.sided) ---\n")
+prop.test(c(ng.sobM.g, ng.sobT.g), c(n.M.g, n.T.g), alternative="two.sided", correct=FALSE)
+```
+
+# 6. Pruebas No Paramétricas
+
+Si no se cumple la normalidad, usamos Wilcoxon (Mann-Whitney).
+
+```{r no_parametricas}
+cat("Mediana Mañana:", median(notaM.muestra.grande), "| Mediana Tarde:", median(notaT.muestra.grande), "\n")
+
+# Wilcoxon
+cat("\n--- Wilcoxon Test (Two Sided) ---\n")
+wilcox.test(notaM.muestra.grande, notaT.muestra.grande, paired=FALSE, alternative="two.sided", exact=FALSE)
+
+cat("\n--- Wilcoxon Test (Greater) ---\n")
+wilcox.test(notaM.muestra.grande, notaT.muestra.grande, paired=FALSE, alternative="greater", exact=FALSE)
+```
