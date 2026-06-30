@@ -14,7 +14,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE, fig.align = "center")
 
 # Carga de librerías
-# install.packages(c("BSDA", "ggplot2", "Rmisc", "car", "e1071", "tseries")) # Ejecutar en consola si faltan
+#install.packages(c("BSDA", "ggplot2", "Rmisc", "car", "e1071", "tseries")) # Ejecutar en consola si faltan
 library(BSDA)
 library(ggplot2)
 library(Rmisc)
@@ -27,6 +27,8 @@ library(knitr)
 # 1. Preparación de Datos
 
 Cargamos los datos del fichero principal y definimos las muestras grandes. También cargamos las muestras pequeñas predefinidas.
+
+
 
 ```{r carga_datos}
 # Carga de datos principales
@@ -280,4 +282,8 @@ wilcox.test(notaM.muestra.grande, notaT.muestra.grande, paired=FALSE, alternativ
 
 cat("\n--- Wilcoxon Test (Greater) ---\n")
 wilcox.test(notaM.muestra.grande, notaT.muestra.grande, paired=FALSE, alternative="greater", exact=FALSE)
+```
+
+```{r grafico}
+hist(nota.mañana)
 ```
